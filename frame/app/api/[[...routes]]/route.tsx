@@ -6,6 +6,8 @@ import { devtools } from "frog/dev";
 import { handle } from "frog/next";
 import { serveStatic } from "frog/serve-static";
 import { FundTokenABI } from "@/utils/abi/FundToken";
+import { FundABI } from "@/utils/abi/Fund";
+import { Address } from "viem";
 
 const app = new Frog({
   assetsPath: "/",
@@ -13,42 +15,76 @@ const app = new Frog({
   // Supply a Hub to enable frame verification.
   // hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
   title: "Frog Frame",
+  initialState: {
+    contractAddresses: [
+      "0xfD6F674817e311F0928D6AD40B35809cA20415db",
+      "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    ],
+  },
 });
+
+app.use("/*", serveStatic({ root: "./public" }));
 
 // Uncomment to use Edge Runtime
 // export const runtime = 'edge'
 
+// Home frame
+app.frame("/", (c) => {
+  return c.res({
+    image: (
+      <div style={{ color: "white", display: "flex", fontSize: 60 }}>aaaa</div>
+    ),
+    intents: [<Button action="/">PLAY 🕹️</Button>],
+  });
+});
+
 // Frame to capture user's favorite fruit.
-app.frame("/:artist/:contract", (c) => {
-  const { artist, contract } = c.req.param();
+app.frame("/:artist/:id", (c) => {
+  const { artist } = c.req.param();
+
+  const index = Number(c.req.param("id")) || 0;
+
+  const contractAddresses = [
+    "0xfD6F674817e311F0928D6AD40B35809cA20415db",
+    "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+  ];
+
+  const boundedIndex =
+    ((index % contractAddresses.length) + contractAddresses.length) %
+    contractAddresses.length;
+
+  const contractAddress = contractAddresses[boundedIndex] as Address;
+
   return c.res({
     action: "/submit",
     image: (
       <div style={{ color: "white", display: "flex", fontSize: 60 }}>
-        {artist} {contract}
+        {artist} {contractAddress}
       </div>
     ),
     intents: [
-      <TextInput placeholder="Enter your fruit..." />,
-      <Button.Transaction target="/transaction">Send Ether</Button.Transaction>,
+      <TextInput placeholder="Enter Amount in ETH" />,
+      <Button.Transaction action="/submit" target={`/transaction`}>
+        Send Ether
+      </Button.Transaction>,
     ],
   });
 });
 
-app.transaction("/transaction", (c) => {
-  const { inputText, initialPath } = c;
+app.transaction("/transaction", async (c) => {
+  const { inputText } = c;
+  // const contract = c.req.param("contract") as `0x${string}`;
+  const contract = "0xfD6F674817e311F0928D6AD40B35809cA20415db";
   // Ensure inputText is defined and of type string
-  if (!inputText) {
-    throw new Error("inputText is required");
-  }
 
   // Contract transaction response.
   return c.contract({
-    abi: FundTokenABI,
+    abi: FundABI,
     chainId: "eip155:11155111",
-    functionName: "mint",
-    args: ["0xeB780C963C700639f16CD09b4CF4F5c6Bc952730", 1000000000000000n],
-    to: "0x31f0C0642a14cC16F90daee6b2DDFda1A5906a61",
+    functionName: "fund",
+    // to: contract,
+    to: contract,
+    value: parseEther("0.001"),
   });
 });
 
